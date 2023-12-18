@@ -1,7 +1,6 @@
 import streamlit as st
 from PIL import Image, ImageDraw
 from streamlit_image_coordinates import streamlit_image_coordinates
-from colorblind import simulate_colorblindness
 import numpy as np
 import cv2
 import math
@@ -65,28 +64,48 @@ def get_closest_color_name(rgb_value):
     return closest_color_name
 def rgb_to_lms(img):
     # Make sure the input image array has the expected shape
-    if img.shape[-1] != 3:
-        raise ValueError("Input image array must have shape (height, width, 3) for RGB channels.")
     
-    # Reshape the image array to (height * width, 3) for matrix multiplication
-    img_flat = img.reshape((-1, 3))
-
     # RGB to LMS matrix
     lms_matrix = np.array([[0.4002, 0.7075, -0.0808],
                            [-0.2263, 1.1653, 0.0457],
                            [0.0000, 0.0000, 0.9182]])
 
-    # Apply the matrix transformation
-    lms_flat = np.dot(img_flat, lms_matrix.T)
+    lms_matrix = np.array(
+        [[0.3904725 , 0.54990437, 0.00890159],
+        [0.07092586, 0.96310739, 0.00135809],
+        [0.02314268, 0.12801221, 0.93605194]]
+        )
+    return np.tensordot(img, lms_matrix, axes=([2], [1]))
+    
+def lms_to_rgb(img):
+    """
+    rgb_matrix = np.array(
+        [[0.0809444479, -0.130504409, 0.116721066],
+        [0.113614708, -0.0102485335, 0.0540193266],
+        [-0.000365296938, -0.00412161469, 0.693511405]
+        ]
+        )
+    """
+    rgb_matrix = np.array(
+        [[ 2.85831110e+00, -1.62870796e+00, -2.48186967e-02],
+        [-2.10434776e-01,  1.15841493e+00,  3.20463334e-04],
+        [-4.18895045e-02, -1.18154333e-01,  1.06888657e+00]]
+        )
+    return np.tensordot(img, rgb_matrix, axes=([2], [1]))
 
-    # Reshape the result back to (height, width, 3)
-    lms_img = lms_flat.reshape(img.shape)
-
-    # Clip values to be within the valid range [0, 1]
-    lms_img = np.clip(lms_img, 0, 1)
-
-    return lms_img
-
+def simulate_colorblindness(img, colorblind_type):
+    lms_img = rgb_to_lms(img)
+    if colorblind_type.lower() in ['protanopia', 'p', 'pro']:
+        sim_matrix = np.array([[0, 0.90822864, 0.008192], [0, 1, 0], [0, 0, 1]], dtype=np.float16)
+    elif colorblind_type.lower() in ['deuteranopia', 'd', 'deut']:
+        sim_matrix =  np.array([[1, 0, 0], [1.10104433,  0, -0.00901975], [0, 0, 1]], dtype=np.float16)
+    elif colorblind_type.lower() in ['tritanopia', 't', 'tri']:
+        sim_matrix = np.array([[1, 0, 0], [0, 1, 0], [-0.15773032,  1.19465634, 0]], dtype=np.float16)
+    else:
+        raise ValueError('{} is an unrecognized colorblindness type.'.format(colorblind_type))
+    lms_img = np.tensordot(lms_img, sim_matrix, axes=([2], [1]))
+    rgb_img = lms_to_rgb(lms_img)
+    return rgb_img.astype(np.uint8)
 
 
 def main():
@@ -133,11 +152,11 @@ def main():
 
             # Inside the main function, after applying colorblind simulation
             if option == "Protanopia":
-                simulated_img = cb.simulate_colorblindness(image, colorblind_type='protanopia')
+                simulated_img = simulate_colorblindness(image, colorblind_type='protanopia')
             elif option == "Tritanopia":
-                simulated_img = cb.simulate_colorblindness(image, colorblind_type='tritanopia')
+                simulated_img = simulate_colorblindness(image, colorblind_type='tritanopia')
             elif option == "Deuteranopia":
-                simulated_img = cb.simulate_colorblindness(image, colorblind_type='deuteranopia')
+                simulated_img = simulate_colorblindness(image, colorblind_type='deuteranopia')
             elif option == "Monochromacy":
                 # Convert PIL Image to NumPy array
                 image_array = np.array(image)
