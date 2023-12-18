@@ -9,3 +9,4 @@ scikit-learn
 tensorflow
 streamlit-image-coordinates
 opencv-python==4.8.1.78
+libgl1
