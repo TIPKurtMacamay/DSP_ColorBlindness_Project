@@ -8,5 +8,4 @@ statsmodels
 scikit-learn
 tensorflow
 streamlit-image-coordinates
-colorblind
 opencv-python
